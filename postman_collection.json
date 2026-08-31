@@ -1,0 +1,386 @@
+{
+  "info": {
+    "name": "Library Management System",
+    "description": "Manual walkthrough of the Book, Borrower, and Loan endpoints. Run folder top to bottom with the Collection Runner, or click through requests individually - {{bookId}}, {{borrowerId}} and {{loanId}} are captured automatically via test scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "bookId", "value": "" },
+    { "key": "borrowerId", "value": "" },
+    { "key": "loanId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "List books (empty)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/books"
+      }
+    },
+    {
+      "name": "Add book - Clean Code",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('bookId', body.id);",
+              "pm.test('status is 201', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"1st\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Add book - Effective Java",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Effective Java\",\n  \"author\": \"Joshua Bloch\",\n  \"yearOfPublication\": 2018,\n  \"edition\": \"3rd\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Add book - missing fields (expect 400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"\",\n  \"author\": \"\",\n  \"yearOfPublication\": null,\n  \"edition\": \"\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Add book - duplicate generated ID (expect 409)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 409', () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"1st\"\n}"
+        }
+      }
+    },
+    {
+      "name": "List books (after adds)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/books"
+      }
+    },
+    {
+      "name": "Filter books by title",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/books?title=clean"
+      }
+    },
+    {
+      "name": "Filter books by author",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/books?author=bloch"
+      }
+    },
+    {
+      "name": "Update book (ID stays fixed)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "pm.test('id unchanged', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('bookId')));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books/{{bookId}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"2nd\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Create borrower - Jane Doe",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('borrowerId', body.id);",
+              "pm.test('status is 201', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/borrowers",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Jane Doe\",\n  \"dateOfBirth\": \"1990-05-12\",\n  \"address\": \"123 Main St\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Create borrower - invalid name (expect 400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/borrowers",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Jane123\",\n  \"dateOfBirth\": \"1990-05-12\",\n  \"address\": \"123 Main St\"\n}"
+        }
+      }
+    },
+    {
+      "name": "List all borrowers",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/borrowers"
+      }
+    },
+    {
+      "name": "Get borrower",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/borrowers/{{borrowerId}}"
+      }
+    },
+    {
+      "name": "Get borrower - not found (expect 404)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/borrowers/does_not_exist"
+      }
+    },
+    {
+      "name": "Update borrower (ID stays fixed)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "pm.test('id unchanged', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('borrowerId')));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/borrowers/{{borrowerId}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Jane Doe\",\n  \"dateOfBirth\": \"1990-05-12\",\n  \"address\": \"456 Oak Ave\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Borrow book",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('loanId', body.loanId);",
+              "pm.test('status is 201', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books/{{bookId}}/borrow",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"borrowerId\": \"{{borrowerId}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Borrow same book again (expect 409)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 409', () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books/{{bookId}}/borrow",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"borrowerId\": \"{{borrowerId}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Borrow with unknown borrower (expect 404)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books/{{bookId}}/borrow",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"borrowerId\": \"does_not_exist\"\n}"
+        }
+      }
+    },
+    {
+      "name": "List books borrowed by borrower",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/borrowers/{{borrowerId}}/books"
+      }
+    },
+    {
+      "name": "List all active loans",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/loans"
+      }
+    },
+    {
+      "name": "List books (borrowed one now unavailable)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/books"
+      }
+    },
+    {
+      "name": "Return book (delete loan)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/loans/{{loanId}}"
+      }
+    },
+    {
+      "name": "Delete book",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/books/{{bookId}}"
+      }
+    },
+    {
+      "name": "Delete borrower",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/borrowers/{{borrowerId}}"
+      }
+    }
+  ]
+}

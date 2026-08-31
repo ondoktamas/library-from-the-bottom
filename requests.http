@@ -1,0 +1,168 @@
+### Library Management System - manual API walkthrough
+### Works with IntelliJ IDEA's built-in HTTP Client and VS Code's "REST Client" extension.
+### Run requests top to bottom; IntelliJ captures {{bookId}} / {{borrowerId}} from responses automatically.
+
+@baseUrl = http://localhost:8080
+
+### List books (empty on a fresh start)
+GET {{baseUrl}}/api/books
+
+### Add a book (ID is generated server-side: author_title_yearofpublication_edition)
+POST {{baseUrl}}/api/books
+Content-Type: application/json
+
+{
+  "title": "Clean Code",
+  "author": "Robert C. Martin",
+  "yearOfPublication": 2008,
+  "edition": "1st"
+}
+
+> {%
+    client.global.set("bookId", response.body.id);
+%}
+
+### Add a second book
+POST {{baseUrl}}/api/books
+Content-Type: application/json
+
+{
+  "title": "Effective Java",
+  "author": "Joshua Bloch",
+  "yearOfPublication": 2018,
+  "edition": "3rd"
+}
+
+### Add a book with missing fields -> expect 400
+POST {{baseUrl}}/api/books
+Content-Type: application/json
+
+{
+  "title": "",
+  "author": "",
+  "yearOfPublication": null,
+  "edition": ""
+}
+
+### Add the same book again -> expect 409 (generated ID already exists)
+POST {{baseUrl}}/api/books
+Content-Type: application/json
+
+{
+  "title": "Clean Code",
+  "author": "Robert C. Martin",
+  "yearOfPublication": 2008,
+  "edition": "1st"
+}
+
+### List books again (should show the two added above)
+GET {{baseUrl}}/api/books
+
+### Filter books by title (substring, case-insensitive)
+GET {{baseUrl}}/api/books?title=clean
+
+### Filter books by author
+GET {{baseUrl}}/api/books?author=bloch
+
+### Filter books by exact ID
+GET {{baseUrl}}/api/books?id={{bookId}}
+
+### Update a book (title/author/year/edition only - the ID does not change)
+PUT {{baseUrl}}/api/books/{{bookId}}
+Content-Type: application/json
+
+{
+  "title": "Clean Code",
+  "author": "Robert C. Martin",
+  "yearOfPublication": 2008,
+  "edition": "2nd"
+}
+
+### Register a borrower (ID is generated server-side: name_dateofbirth)
+POST {{baseUrl}}/api/borrowers
+Content-Type: application/json
+
+{
+  "name": "Jane Doe",
+  "dateOfBirth": "1990-05-12",
+  "address": "123 Main St"
+}
+
+> {%
+    client.global.set("borrowerId", response.body.id);
+%}
+
+### Register a borrower with an invalid name -> expect 400
+POST {{baseUrl}}/api/borrowers
+Content-Type: application/json
+
+{
+  "name": "Jane123",
+  "dateOfBirth": "1990-05-12",
+  "address": "123 Main St"
+}
+
+### List all borrowers
+GET {{baseUrl}}/api/borrowers
+
+### Get borrower details
+GET {{baseUrl}}/api/borrowers/{{borrowerId}}
+
+### Get a borrower that doesn't exist -> expect 404
+GET {{baseUrl}}/api/borrowers/does_not_exist
+
+### Update a borrower (name/date of birth/address only - the ID does not change)
+PUT {{baseUrl}}/api/borrowers/{{borrowerId}}
+Content-Type: application/json
+
+{
+  "name": "Jane Doe",
+  "dateOfBirth": "1990-05-12",
+  "address": "456 Oak Ave"
+}
+
+### Borrow a book
+POST {{baseUrl}}/api/books/{{bookId}}/borrow
+Content-Type: application/json
+
+{
+  "borrowerId": "{{borrowerId}}"
+}
+
+> {%
+    client.global.set("loanId", response.body.loanId);
+%}
+
+### Borrow the same book again -> expect 409 (already borrowed)
+POST {{baseUrl}}/api/books/{{bookId}}/borrow
+Content-Type: application/json
+
+{
+  "borrowerId": "{{borrowerId}}"
+}
+
+### Borrow with a borrower that doesn't exist -> expect 404
+POST {{baseUrl}}/api/books/{{bookId}}/borrow
+Content-Type: application/json
+
+{
+  "borrowerId": "does_not_exist"
+}
+
+### List books borrowed by the borrower
+GET {{baseUrl}}/api/borrowers/{{borrowerId}}/books
+
+### List all active loans
+GET {{baseUrl}}/api/loans
+
+### List all books (the borrowed one should now show "available": false)
+GET {{baseUrl}}/api/books
+
+### Return the book (deletes the loan, marks the book available again)
+DELETE {{baseUrl}}/api/loans/{{loanId}}
+
+### Delete a book (also removes its active loan, if any)
+DELETE {{baseUrl}}/api/books/{{bookId}}
+
+### Delete a borrower (also removes their active loan, if any)
+DELETE {{baseUrl}}/api/borrowers/{{borrowerId}}
