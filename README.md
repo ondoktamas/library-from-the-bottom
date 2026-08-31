@@ -66,7 +66,7 @@ installing, open a new terminal (or restart your IDE) so it picks up the updated
 ### 3. Get the project
 
 ```bash
-git clone https://github.com/ondoktamas/library-from-the-bottom.git
+git clone <this-repository-url>
 cd library-from-the-bottom
 ```
 
@@ -210,7 +210,7 @@ mvn test -Dtest=BookServiceTest                      # a single class
 - **Console output** (while `mvn test` runs): a per-class summary line, e.g.
 
   ```
-  [INFO] Running com.ondok.library.service.BookServiceTest
+  [INFO] Running com.example.library.service.BookServiceTest
   [INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.514 s
   ```
 
@@ -253,14 +253,14 @@ them.
    ```
 
    That's the `borrow-book` span: its trace ID, span ID, kind (`INTERNAL`), and the two attributes
-   (`book.id`, `borrower.id`) it was tagged with in [`BookService.java`](src/main/java/com/ondok/library/service/BookService.java).
+   (`book.id`, `borrower.id`) it was tagged with in [`BookService.java`](src/main/java/com/example/library/service/BookService.java).
 
 The same span also prints during `mvn test`, since several integration tests call the borrow endpoint —
 scroll the test console output for `LoggingSpanExporter` lines.
 
 ### Seeing the metric
 
-The `library.books.borrowed` counter (defined in [`LibraryMetrics.java`](src/main/java/com/ondok/library/observability/LibraryMetrics.java))
+The `library.books.borrowed` counter (defined in [`LibraryMetrics.java`](src/main/java/com/example/library/observability/LibraryMetrics.java))
 increments on every successful borrow. It's exported on a 10-second timer (not immediately like the
 span), so after triggering a borrow, wait up to 10 seconds and look for a `LoggingMetricExporter` line
 in the same terminal:
@@ -272,7 +272,7 @@ INFO ... i.o.e.logging.LoggingMetricExporter : metric: ImmutableMetricData{...na
 
 ### Swapping in a real backend later
 
-Both exporters are wired in [`OpenTelemetryConfig.java`](src/main/java/com/ondok/library/config/OpenTelemetryConfig.java).
+Both exporters are wired in [`OpenTelemetryConfig.java`](src/main/java/com/example/library/config/OpenTelemetryConfig.java).
 To send this to an actual observability backend (e.g. Jaeger, an OTel Collector) instead of the console,
 replace `LoggingSpanExporter` / `LoggingMetricExporter` with `OtlpGrpcSpanExporter` / `OtlpGrpcMetricExporter`
 pointed at the collector's endpoint — nothing else in the codebase needs to change.

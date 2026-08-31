@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.ondok.library</groupId>
+    <groupId>com.example</groupId>
     <artifactId>library-management-system</artifactId>
     <version>0.1.0</version>
     <name>library-management-system</name>
