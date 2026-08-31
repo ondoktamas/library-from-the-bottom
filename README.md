@@ -24,34 +24,34 @@ by Spring Boot.
 
 ### 1. Install prerequisites
 
-You can use an IDE that bundles everything needed, such as IntelliJ IDEA.
+#### You can use an IDE that bundles everything needed, such as IntelliJ IDEA.
 
 Otherwise, you need a **JDK 21** and **Maven** (no Maven Wrapper is bundled, so use your own `mvn`). For Maven, a package installer is needed depending on you work on Windows or Mac.
 
-JDK:
-
+#### JDK:
 If not yet installed, download JDK from here and install on your matching system: https://www.oracle.com/java/technologies/downloads/#jdk26
 
-Maven:
+#### Maven:
 - with Chocolatey on *Windows*:
-  - Click the Windows Start button, type powershell, right-click Windows PowerShell, and choose Run as administrator.
-  - Check your system execution policy by typing Get-ExecutionPolicy and pressing Enter.
-    -If it returns Restricted, change it by running `Set-ExecutionPolicy AllSigned` or `Set-ExecutionPolicy Bypass -Scope Process` so the installer script can run.
-  - Copy and paste the official install command into the PowerShell: `Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))`
+  - Open Windows PowerShell with Run as administrator.
+  - Check your system execution policy by typing `Get-ExecutionPolicy`.
+    - If it returns *Restricted*, change it by running `Set-ExecutionPolicy AllSigned` or `Set-ExecutionPolicy Bypass -Scope Process` so the installer script can run.
+  - Copy and paste the official install commands into the PowerShell: 
+```bash
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+```
 ```bash
 choco install temurin21 maven
 ```
-
 - with Homebrew on *Mac*:
-  - Open a Terminal, and execute `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
-    - follow the instructions inside the Terminal
+  - Open a Terminal, and install Homebrew (follow all instructions), then install Maven with Homebrew
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 ```bash
 brew install maven
 ```
-If you prefer any other way, follow the instructions here: https://maven.apache.org/install.html
-
-
-
+If you prefer any other way than these, follow the official instructions here: https://maven.apache.org/install.html
 
 ### 2. Verify the installation
 
