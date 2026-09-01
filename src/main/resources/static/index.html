@@ -7,72 +7,119 @@
 <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-<div class="app">
-  <aside class="sidebar">
-    <div class="brand">📚 Library Admin</div>
+<div id="toast" class="toast" hidden></div>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <div class="brand">
+      <span class="brand-mark">LA</span>
+      <span class="brand-text">
+        <span class="brand-title">Library Admin</span>
+        <span class="brand-subtitle">Library Records System</span>
+      </span>
+    </div>
     <nav class="nav">
       <button class="nav-item active" data-panel="books">Books</button>
       <button class="nav-item" data-panel="borrowers">Borrowers</button>
       <button class="nav-item" data-panel="loans">Loans</button>
     </nav>
-  </aside>
+  </div>
+</header>
 
-  <main class="content">
-    <div id="toast" class="toast" hidden></div>
-
-    <section id="panel-books" class="panel active">
-      <div class="panel-header">
+<main class="content">
+  <section id="panel-books" class="panel active">
+    <div class="panel-header">
+      <p class="breadcrumb">Home / Library Admin / Books</p>
+      <div class="panel-header-row">
         <h1>Books</h1>
         <button class="btn btn-primary" id="add-book-btn">+ Add Book</button>
       </div>
       <div class="filter-bar">
-        <input type="text" id="filter-id" placeholder="Filter by ID">
         <input type="text" id="filter-title" placeholder="Filter by title">
         <input type="text" id="filter-author" placeholder="Filter by author">
         <button class="btn btn-secondary" id="clear-filters-btn">Clear</button>
       </div>
+    </div>
+    <div class="panel-body">
       <table class="data-table">
+        <colgroup>
+          <col style="width: 15%">
+          <col style="width: 12%">
+          <col style="width: 7%">
+          <col style="width: 8%">
+          <col style="width: 10%">
+          <col style="width: 12%">
+          <col style="width: 15%">
+          <col style="width: 21%">
+        </colgroup>
         <thead>
-          <tr><th>Title</th><th>Author</th><th>Year</th><th>Edition</th><th>Status</th><th>ID</th><th></th></tr>
+          <tr><th>Title</th><th>Author</th><th>Year</th><th>Edition</th><th>Quantity</th><th>Status</th><th>ID</th><th></th></tr>
         </thead>
         <tbody id="books-tbody"></tbody>
       </table>
       <p class="empty-state" id="books-empty" hidden>No books match. Add one or adjust the filters.</p>
-    </section>
+    </div>
+  </section>
 
-    <section id="panel-borrowers" class="panel">
-      <div class="panel-header">
+  <section id="panel-borrowers" class="panel">
+    <div class="panel-header">
+      <p class="breadcrumb">Home / Library Admin / Borrowers</p>
+      <div class="panel-header-row">
         <h1>Borrowers</h1>
         <button class="btn btn-primary" id="add-borrower-btn">+ Add Borrower</button>
       </div>
+    </div>
+    <div class="panel-body">
       <table class="data-table">
+        <colgroup>
+          <col style="width: 17%">
+          <col style="width: 13%">
+          <col style="width: 25%">
+          <col style="width: 25%">
+          <col style="width: 20%">
+        </colgroup>
         <thead>
           <tr><th>Name</th><th>Date of Birth</th><th>Address</th><th>ID</th><th></th></tr>
         </thead>
         <tbody id="borrowers-tbody"></tbody>
       </table>
       <p class="empty-state" id="borrowers-empty" hidden>No borrowers yet. Add one to get started.</p>
-    </section>
+    </div>
+  </section>
 
-    <section id="panel-loans" class="panel">
-      <div class="panel-header">
+  <section id="panel-loans" class="panel">
+    <div class="panel-header">
+      <p class="breadcrumb">Home / Library Admin / Loans</p>
+      <div class="panel-header-row">
         <h1>Loans</h1>
       </div>
+    </div>
+    <div class="panel-body">
       <div class="pair-form">
         <select id="pair-book-select"></select>
         <select id="pair-borrower-select"></select>
         <button class="btn btn-primary" id="pair-btn">Pair (Borrow)</button>
       </div>
       <table class="data-table">
+        <colgroup>
+          <col style="width: 32%">
+          <col style="width: 26%">
+          <col style="width: 27%">
+          <col style="width: 15%">
+        </colgroup>
         <thead>
           <tr><th>Book</th><th>Borrower</th><th>Borrowed At</th><th></th></tr>
         </thead>
         <tbody id="loans-tbody"></tbody>
       </table>
       <p class="empty-state" id="loans-empty" hidden>No active loans.</p>
-    </section>
-  </main>
-</div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>Library Admin &middot; Library Management System &mdash; for internal use</p>
+</footer>
 
 <div class="modal-overlay" id="modal-overlay" hidden>
   <div class="modal">

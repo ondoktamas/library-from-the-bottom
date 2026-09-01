@@ -114,21 +114,35 @@ the seed data again.
 
 ## Data model
 
-- **Book**: `title`, `author`, `yearOfPublication`, `edition`, plus a server-generated `id` —
-  lowercase, underscore-joined: `author_title_yearofpublication_edition`
-  (e.g. `robert_c_martin_clean_code_2008_1st`).
+- **Book**: `title`, `author`, `yearOfPublication`, `edition`, `quantity` (a non-negative integer — how
+  many copies are currently available to borrow), plus a server-generated `id` — lowercase, underscore-joined:
+  `author_title_yearofpublication_edition` (e.g. `robert_c_martin_clean_code_2008_1st`).
 - **Borrower**: `name` (letters and spaces only), `dateOfBirth`, `address`, plus a server-generated
   `id`: `name_dateofbirth` (e.g. `jane_doe_19900512`).
 
 IDs are generated once, at creation time, from those fields. **Editing a book or borrower afterward
 does not regenerate the ID** — it stays fixed so loan references and URLs never break.
 
+### Borrowing rules
+
+- A library can hold multiple copies of the same book — `quantity` tracks how many are currently free.
+- Adding a book whose title/author/year/edition match an existing one (i.e. generates the same ID)
+  does **not** fail with a conflict — it adds the new request's `quantity` onto the existing book's
+  `quantity` instead, and returns the updated book. Borrowers only ever see one entry per book.
+- Borrowing decrements `quantity` by one; returning increments it back. Once `quantity` reaches 0,
+  further borrow attempts get `409 Conflict` until a copy is returned.
+- Different copies of the same book can go to different borrowers at the same time — borrowing just
+  requires `quantity > 0`, it doesn't matter who else currently has a copy.
+- One borrower can never hold more than one copy of the *same* book at once — a second borrow attempt
+  for a book they already have on loan gets `409 Conflict`, regardless of remaining `quantity`. Once
+  they return it, they're free to borrow that same book again.
+
 ## Endpoints
 
 | Method | Path                          | Description                                                  |
 |--------|-------------------------------|----------------------------------------------------------------|
 | GET    | `/api/books`                   | List books, optionally filtered by `?id=`, `?title=`, `?author=` (title/author match case-insensitively, substring) |
-| POST   | `/api/books`                   | Add a new book (ID generated server-side)                    |
+| POST   | `/api/books`                   | Add a book (ID generated server-side); if one with the same ID already exists, adds this request's `quantity` onto it instead of creating a duplicate |
 | PUT    | `/api/books/{bookId}`          | Update a book's title/author/year/edition (ID unchanged)     |
 | DELETE | `/api/books/{bookId}`          | Delete a book (also removes its active loan, if any)         |
 | POST   | `/api/books/{bookId}/borrow`   | Borrow a book (body: `{"borrowerId": "..."}`)                |
@@ -139,17 +153,18 @@ does not regenerate the ID** — it stays fixed so loan references and URLs neve
 | DELETE | `/api/borrowers/{id}`           | Delete a borrower (also removes their active loan, if any)     |
 | GET    | `/api/borrowers/{id}/books`     | List books currently borrowed by a borrower                    |
 | GET    | `/api/loans`                    | List all active loans (with book title / borrower name)        |
-| DELETE | `/api/loans/{loanId}`           | Return a book (deletes the loan, marks the book available)     |
+| DELETE | `/api/loans/{loanId}`           | Return a book (deletes the loan, increments the book's quantity) |
 
-Error responses: `400` (validation), `404` (not found), `409` (book already borrowed, or a book/borrower
-with the same generated ID already exists).
+Error responses: `400` (validation), `404` (not found), `409` (book has no copies left, the same borrower
+already has this book on loan, or a borrower with the same generated ID already exists — adding a
+duplicate *book* is not an error, see above).
 
 ### Example requests
 
 ```bash
 curl -X POST http://localhost:8080/api/books \
   -H "Content-Type: application/json" \
-  -d '{"title":"Clean Code","author":"Robert C. Martin","yearOfPublication":2008,"edition":"1st"}'
+  -d '{"title":"Clean Code","author":"Robert C. Martin","yearOfPublication":2008,"edition":"1st","quantity":3}'
 
 curl "http://localhost:8080/api/books?title=clean&author=martin"
 
@@ -210,7 +225,7 @@ mvn test -Dtest=BookServiceTest                      # a single class
 - **Console output** (while `mvn test` runs): a per-class summary line, e.g.
 
   ```
-  [INFO] Running com.example.library.service.BookServiceTest
+  [INFO] Running library.service.BookServiceTest
   [INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.514 s
   ```
 
@@ -253,14 +268,14 @@ them.
    ```
 
    That's the `borrow-book` span: its trace ID, span ID, kind (`INTERNAL`), and the two attributes
-   (`book.id`, `borrower.id`) it was tagged with in [`BookService.java`](src/main/java/com/example/library/service/BookService.java).
+   (`book.id`, `borrower.id`) it was tagged with in [`BookService.java`](src/main/java/library/service/BookService.java).
 
 The same span also prints during `mvn test`, since several integration tests call the borrow endpoint —
 scroll the test console output for `LoggingSpanExporter` lines.
 
 ### Seeing the metric
 
-The `library.books.borrowed` counter (defined in [`LibraryMetrics.java`](src/main/java/com/example/library/observability/LibraryMetrics.java))
+The `library.books.borrowed` counter (defined in [`LibraryMetrics.java`](src/main/java/library/observability/LibraryMetrics.java))
 increments on every successful borrow. It's exported on a 10-second timer (not immediately like the
 span), so after triggering a borrow, wait up to 10 seconds and look for a `LoggingMetricExporter` line
 in the same terminal:
@@ -272,7 +287,7 @@ INFO ... i.o.e.logging.LoggingMetricExporter : metric: ImmutableMetricData{...na
 
 ### Swapping in a real backend later
 
-Both exporters are wired in [`OpenTelemetryConfig.java`](src/main/java/com/example/library/config/OpenTelemetryConfig.java).
+Both exporters are wired in [`OpenTelemetryConfig.java`](src/main/java/library/config/OpenTelemetryConfig.java).
 To send this to an actual observability backend (e.g. Jaeger, an OTel Collector) instead of the console,
 replace `LoggingSpanExporter` / `LoggingMetricExporter` with `OtlpGrpcSpanExporter` / `OtlpGrpcMetricExporter`
 pointed at the collector's endpoint — nothing else in the codebase needs to change.

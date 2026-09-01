@@ -7,7 +7,7 @@
 ### List books (empty on a fresh start)
 GET {{baseUrl}}/api/books
 
-### Add a book (ID is generated server-side: author_title_yearofpublication_edition)
+### Add a book with 3 copies (ID is generated server-side: author_title_yearofpublication_edition)
 POST {{baseUrl}}/api/books
 Content-Type: application/json
 
@@ -15,14 +15,15 @@ Content-Type: application/json
   "title": "Clean Code",
   "author": "Robert C. Martin",
   "yearOfPublication": 2008,
-  "edition": "1st"
+  "edition": "1st",
+  "quantity": 3
 }
 
 > {%
     client.global.set("bookId", response.body.id);
 %}
 
-### Add a second book
+### Add a second book, with only 1 copy
 POST {{baseUrl}}/api/books
 Content-Type: application/json
 
@@ -30,7 +31,8 @@ Content-Type: application/json
   "title": "Effective Java",
   "author": "Joshua Bloch",
   "yearOfPublication": 2018,
-  "edition": "3rd"
+  "edition": "3rd",
+  "quantity": 1
 }
 
 ### Add a book with missing fields -> expect 400
@@ -41,10 +43,23 @@ Content-Type: application/json
   "title": "",
   "author": "",
   "yearOfPublication": null,
-  "edition": ""
+  "edition": "",
+  "quantity": null
 }
 
-### Add the same book again -> expect 409 (generated ID already exists)
+### Add a book with a non-numeric quantity -> expect 400
+POST {{baseUrl}}/api/books
+Content-Type: application/json
+
+{
+  "title": "Dune",
+  "author": "Frank Herbert",
+  "yearOfPublication": 1965,
+  "edition": "1st",
+  "quantity": "a few"
+}
+
+### Add the exact same book again -> merges into the existing entry (quantity 3 -> 6), not a 409
 POST {{baseUrl}}/api/books
 Content-Type: application/json
 
@@ -52,10 +67,11 @@ Content-Type: application/json
   "title": "Clean Code",
   "author": "Robert C. Martin",
   "yearOfPublication": 2008,
-  "edition": "1st"
+  "edition": "1st",
+  "quantity": 3
 }
 
-### List books again (should show the two added above)
+### List books again (still just two distinct books - no duplicate row for Clean Code)
 GET {{baseUrl}}/api/books
 
 ### Filter books by title (substring, case-insensitive)
@@ -67,7 +83,7 @@ GET {{baseUrl}}/api/books?author=bloch
 ### Filter books by exact ID
 GET {{baseUrl}}/api/books?id={{bookId}}
 
-### Update a book (title/author/year/edition only - the ID does not change)
+### Update a book (title/author/year/edition/quantity - the ID does not change)
 PUT {{baseUrl}}/api/books/{{bookId}}
 Content-Type: application/json
 
@@ -75,7 +91,8 @@ Content-Type: application/json
   "title": "Clean Code",
   "author": "Robert C. Martin",
   "yearOfPublication": 2008,
-  "edition": "2nd"
+  "edition": "2nd",
+  "quantity": 3
 }
 
 ### Register a borrower (ID is generated server-side: name_dateofbirth)
@@ -90,6 +107,20 @@ Content-Type: application/json
 
 > {%
     client.global.set("borrowerId", response.body.id);
+%}
+
+### Register a second borrower, used below to show two different people can borrow the same book
+POST {{baseUrl}}/api/borrowers
+Content-Type: application/json
+
+{
+  "name": "John Smith",
+  "dateOfBirth": "1985-01-01",
+  "address": "1 Elm Street"
+}
+
+> {%
+    client.global.set("secondBorrowerId", response.body.id);
 %}
 
 ### Register a borrower with an invalid name -> expect 400
@@ -121,7 +152,7 @@ Content-Type: application/json
   "address": "456 Oak Ave"
 }
 
-### Borrow a book
+### Jane borrows Clean Code (quantity 3 -> 2)
 POST {{baseUrl}}/api/books/{{bookId}}/borrow
 Content-Type: application/json
 
@@ -133,12 +164,20 @@ Content-Type: application/json
     client.global.set("loanId", response.body.loanId);
 %}
 
-### Borrow the same book again -> expect 409 (already borrowed)
+### Jane tries to borrow the very same book again -> expect 409 (one borrower, one copy of a given book at a time)
 POST {{baseUrl}}/api/books/{{bookId}}/borrow
 Content-Type: application/json
 
 {
   "borrowerId": "{{borrowerId}}"
+}
+
+### John borrows a different copy of the same book -> succeeds (quantity 2 -> 1)
+POST {{baseUrl}}/api/books/{{bookId}}/borrow
+Content-Type: application/json
+
+{
+  "borrowerId": "{{secondBorrowerId}}"
 }
 
 ### Borrow with a borrower that doesn't exist -> expect 404
@@ -149,17 +188,25 @@ Content-Type: application/json
   "borrowerId": "does_not_exist"
 }
 
-### List books borrowed by the borrower
+### List books borrowed by Jane
 GET {{baseUrl}}/api/borrowers/{{borrowerId}}/books
 
 ### List all active loans
 GET {{baseUrl}}/api/loans
 
-### List all books (the borrowed one should now show "available": false)
+### List all books (Clean Code should now show "quantity": 1)
 GET {{baseUrl}}/api/books
 
-### Return the book (deletes the loan, marks the book available again)
+### Jane returns her copy (deletes the loan, quantity 1 -> 2)
 DELETE {{baseUrl}}/api/loans/{{loanId}}
+
+### Now that she's returned it, Jane can borrow Clean Code again
+POST {{baseUrl}}/api/books/{{bookId}}/borrow
+Content-Type: application/json
+
+{
+  "borrowerId": "{{borrowerId}}"
+}
 
 ### Delete a book (also removes its active loan, if any)
 DELETE {{baseUrl}}/api/books/{{bookId}}

@@ -91,6 +91,10 @@ const api = {
     const response = await fetch(`${API_BASE}/borrowers/${encodeURIComponent(id)}`, { method: "DELETE" });
     return handleResponse(response);
   },
+  async getBorrowedBooks(id) {
+    const response = await fetch(`${API_BASE}/borrowers/${encodeURIComponent(id)}/books`);
+    return handleResponse(response);
+  },
 
   async listLoans() {
     const response = await fetch(`${API_BASE}/loans`);
@@ -149,7 +153,6 @@ function escapeAttr(str) {
 
 async function renderBooks() {
   const filters = {
-    id: document.getElementById("filter-id").value.trim(),
     title: document.getElementById("filter-title").value.trim(),
     author: document.getElementById("filter-author").value.trim(),
   };
@@ -166,7 +169,8 @@ async function renderBooks() {
       <td>${escapeHtml(book.author)}</td>
       <td>${book.yearOfPublication}</td>
       <td>${escapeHtml(book.edition)}</td>
-      <td><span class="badge ${book.available ? "badge-available" : "badge-borrowed"}">${book.available ? "Available" : "Borrowed"}</span></td>
+      <td>${book.quantity}</td>
+      <td><span class="badge ${book.quantity > 0 ? "badge-available" : "badge-borrowed"}">${book.quantity > 0 ? "Available" : "Out of stock"}</span></td>
       <td class="id-cell">${escapeHtml(book.id)}</td>
       <td class="actions-cell">
         <button class="btn btn-secondary btn-small" data-action="edit-book" data-id="${book.id}">Edit</button>
@@ -177,6 +181,8 @@ async function renderBooks() {
   }
 }
 
+const expandedBorrowers = new Set();
+
 async function renderBorrowers() {
   const list = await api.listBorrowers();
   const tbody = document.getElementById("borrowers-tbody");
@@ -184,10 +190,22 @@ async function renderBorrowers() {
   tbody.innerHTML = "";
   empty.hidden = list.length > 0;
 
+  const expandedIds = list.map((b) => b.id).filter((id) => expandedBorrowers.has(id));
+  const borrowedBooksById = {};
+  await Promise.all(
+    expandedIds.map(async (id) => {
+      borrowedBooksById[id] = await api.getBorrowedBooks(id);
+    })
+  );
+
   for (const borrower of list) {
+    const isExpanded = expandedBorrowers.has(borrower.id);
+
     const tr = document.createElement("tr");
+    tr.className = "borrower-row";
+    tr.dataset.borrowerId = borrower.id;
     tr.innerHTML = `
-      <td>${escapeHtml(borrower.name)}</td>
+      <td><span class="expand-indicator">${isExpanded ? "▾" : "▸"}</span>${escapeHtml(borrower.name)}</td>
       <td>${borrower.dateOfBirth}</td>
       <td>${escapeHtml(borrower.address)}</td>
       <td class="id-cell">${escapeHtml(borrower.id)}</td>
@@ -197,6 +215,32 @@ async function renderBorrowers() {
       </td>
     `;
     tbody.appendChild(tr);
+
+    if (isExpanded) {
+      const books = borrowedBooksById[borrower.id] ?? [];
+      const detailTr = document.createElement("tr");
+      detailTr.className = "borrower-detail-row";
+      detailTr.innerHTML = `
+        <td colspan="5">
+          <div class="borrower-loans">
+            ${
+              books.length
+                ? `<ul class="loan-list">${books
+                    .map(
+                      (book) => `
+                      <li>
+                        <span class="loan-title">${escapeHtml(book.title)}</span>
+                        <span class="loan-meta">${escapeHtml(book.author)} &middot; ${escapeHtml(book.id)}</span>
+                      </li>`
+                    )
+                    .join("")}</ul>`
+                : `<p class="loan-empty">This borrower currently has no active loans.</p>`
+            }
+          </div>
+        </td>
+      `;
+      tbody.appendChild(detailTr);
+    }
   }
 }
 
@@ -209,7 +253,7 @@ async function renderLoans() {
 
   const bookSelect = document.getElementById("pair-book-select");
   const borrowerSelect = document.getElementById("pair-borrower-select");
-  const availableBooks = bookList.filter((b) => b.available);
+  const availableBooks = bookList.filter((b) => b.quantity > 0);
 
   bookSelect.innerHTML = availableBooks.length
     ? availableBooks.map((b) => `<option value="${b.id}">${escapeHtml(b.title)}</option>`).join("")
@@ -246,11 +290,11 @@ async function refreshAll() {
 // --- Filter bar ---
 
 const debouncedRenderBooks = debounce(renderBooks, 300);
-["filter-id", "filter-title", "filter-author"].forEach((id) => {
+["filter-title", "filter-author"].forEach((id) => {
   document.getElementById(id).addEventListener("input", debouncedRenderBooks);
 });
 document.getElementById("clear-filters-btn").addEventListener("click", () => {
-  ["filter-id", "filter-title", "filter-author"].forEach((id) => {
+  ["filter-title", "filter-author"].forEach((id) => {
     document.getElementById(id).value = "";
   });
   renderBooks();
@@ -273,6 +317,7 @@ function openBookModal(book = null) {
     <div class="field"><label>Author</label><input name="author" required value="${book ? escapeAttr(book.author) : ""}"></div>
     <div class="field"><label>Year of publication</label><input name="yearOfPublication" type="number" min="1" required value="${book ? book.yearOfPublication : ""}"></div>
     <div class="field"><label>Edition</label><input name="edition" required value="${book ? escapeAttr(book.edition) : ""}"></div>
+    <div class="field"><label>Quantity</label><input name="quantity" type="number" min="0" step="1" required value="${book ? book.quantity : ""}"></div>
     ${book ? `<div class="field"><label>ID (fixed, not affected by edits)</label><input value="${escapeAttr(book.id)}" readonly></div>` : ""}
   `;
   overlay.hidden = false;
@@ -314,6 +359,7 @@ modalForm.addEventListener("submit", async (e) => {
         author: formData.get("author"),
         yearOfPublication: Number(formData.get("yearOfPublication")),
         edition: formData.get("edition"),
+        quantity: Number(formData.get("quantity")),
       };
       if (modalContext.id) {
         await api.updateBook(modalContext.id, payload);
@@ -374,6 +420,25 @@ document.addEventListener("click", async (e) => {
       showToast("Book returned");
       await refreshAll();
     }
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+document.getElementById("borrowers-tbody").addEventListener("click", async (e) => {
+  if (e.target.closest("button")) return;
+  const row = e.target.closest("tr.borrower-row");
+  if (!row) return;
+
+  const { borrowerId } = row.dataset;
+  if (expandedBorrowers.has(borrowerId)) {
+    expandedBorrowers.delete(borrowerId);
+  } else {
+    expandedBorrowers.add(borrowerId);
+  }
+
+  try {
+    await renderBorrowers();
   } catch (error) {
     showToast(error.message, true);
   }

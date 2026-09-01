@@ -8,6 +8,7 @@
     { "key": "baseUrl", "value": "http://localhost:8080" },
     { "key": "bookId", "value": "" },
     { "key": "borrowerId", "value": "" },
+    { "key": "secondBorrowerId", "value": "" },
     { "key": "loanId", "value": "" }
   ],
   "item": [
@@ -19,7 +20,7 @@
       }
     },
     {
-      "name": "Add book - Clean Code",
+      "name": "Add book - Clean Code (3 copies)",
       "event": [
         {
           "listen": "test",
@@ -27,7 +28,8 @@
             "exec": [
               "const body = pm.response.json();",
               "pm.collectionVariables.set('bookId', body.id);",
-              "pm.test('status is 201', () => pm.response.to.have.status(201));"
+              "pm.test('status is 201', () => pm.response.to.have.status(201));",
+              "pm.test('quantity is 3', () => pm.expect(body.quantity).to.eql(3));"
             ]
           }
         }
@@ -38,7 +40,7 @@
         "url": "{{baseUrl}}/api/books",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"1st\"\n}"
+          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"1st\",\n  \"quantity\": 3\n}"
         }
       }
     },
@@ -50,7 +52,7 @@
         "url": "{{baseUrl}}/api/books",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"Effective Java\",\n  \"author\": \"Joshua Bloch\",\n  \"yearOfPublication\": 2018,\n  \"edition\": \"3rd\"\n}"
+          "raw": "{\n  \"title\": \"Effective Java\",\n  \"author\": \"Joshua Bloch\",\n  \"yearOfPublication\": 2018,\n  \"edition\": \"3rd\",\n  \"quantity\": 1\n}"
         }
       }
     },
@@ -72,18 +74,18 @@
         "url": "{{baseUrl}}/api/books",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"\",\n  \"author\": \"\",\n  \"yearOfPublication\": null,\n  \"edition\": \"\"\n}"
+          "raw": "{\n  \"title\": \"\",\n  \"author\": \"\",\n  \"yearOfPublication\": null,\n  \"edition\": \"\",\n  \"quantity\": null\n}"
         }
       }
     },
     {
-      "name": "Add book - duplicate generated ID (expect 409)",
+      "name": "Add book - non-numeric quantity (expect 400)",
       "event": [
         {
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('status is 409', () => pm.response.to.have.status(409));"
+              "pm.test('status is 400', () => pm.response.to.have.status(400));"
             ]
           }
         }
@@ -94,7 +96,30 @@
         "url": "{{baseUrl}}/api/books",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"1st\"\n}"
+          "raw": "{\n  \"title\": \"Dune\",\n  \"author\": \"Frank Herbert\",\n  \"yearOfPublication\": 1965,\n  \"edition\": \"1st\",\n  \"quantity\": \"a few\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Add book - same generated ID again (merges quantity, expect 201)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 201', () => pm.response.to.have.status(201));",
+              "pm.test('quantity merged to 6', () => pm.expect(pm.response.json().quantity).to.eql(6));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"1st\",\n  \"quantity\": 3\n}"
         }
       }
     },
@@ -138,7 +163,7 @@
         "url": "{{baseUrl}}/api/books/{{bookId}}",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"2nd\"\n}"
+          "raw": "{\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"yearOfPublication\": 2008,\n  \"edition\": \"2nd\",\n  \"quantity\": 3\n}"
         }
       }
     },
@@ -163,6 +188,30 @@
         "body": {
           "mode": "raw",
           "raw": "{\n  \"name\": \"Jane Doe\",\n  \"dateOfBirth\": \"1990-05-12\",\n  \"address\": \"123 Main St\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Create borrower - John Smith",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('secondBorrowerId', body.id);",
+              "pm.test('status is 201', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/borrowers",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"John Smith\",\n  \"dateOfBirth\": \"1985-01-01\",\n  \"address\": \"1 Elm Street\"\n}"
         }
       }
     },
@@ -243,7 +292,7 @@
       }
     },
     {
-      "name": "Borrow book",
+      "name": "Jane borrows Clean Code (quantity 3 -> 2)",
       "event": [
         {
           "listen": "test",
@@ -267,7 +316,7 @@
       }
     },
     {
-      "name": "Borrow same book again (expect 409)",
+      "name": "Jane borrows the same book again (expect 409 - one copy per borrower at a time)",
       "event": [
         {
           "listen": "test",
@@ -285,6 +334,28 @@
         "body": {
           "mode": "raw",
           "raw": "{\n  \"borrowerId\": \"{{borrowerId}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "John borrows a different copy of the same book (expect 201, quantity 2 -> 1)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 201', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books/{{bookId}}/borrow",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"borrowerId\": \"{{secondBorrowerId}}\"\n}"
         }
       }
     },
@@ -311,7 +382,7 @@
       }
     },
     {
-      "name": "List books borrowed by borrower",
+      "name": "List books borrowed by Jane",
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/api/borrowers/{{borrowerId}}/books"
@@ -325,14 +396,26 @@
       }
     },
     {
-      "name": "List books (borrowed one now unavailable)",
+      "name": "List books (Clean Code now shows quantity 1)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const books = pm.response.json();",
+              "const cleanCode = books.find(b => b.id === pm.collectionVariables.get('bookId'));",
+              "pm.test('quantity is 1', () => pm.expect(cleanCode.quantity).to.eql(1));"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/api/books"
       }
     },
     {
-      "name": "Return book (delete loan)",
+      "name": "Jane returns her copy (delete loan, quantity 1 -> 2)",
       "event": [
         {
           "listen": "test",
@@ -346,6 +429,28 @@
       "request": {
         "method": "DELETE",
         "url": "{{baseUrl}}/api/loans/{{loanId}}"
+      }
+    },
+    {
+      "name": "Jane borrows Clean Code again, now that she's returned it (expect 201)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 201', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/books/{{bookId}}/borrow",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"borrowerId\": \"{{borrowerId}}\"\n}"
+        }
       }
     },
     {
