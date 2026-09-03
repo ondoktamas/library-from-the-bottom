@@ -14,6 +14,7 @@ database interaction, automated testing, and observability practices in Java.
 | Observability         | OpenTelemetry SDK (manual wiring, `opentelemetry-exporter-logging`) — 1 custom span, 1 custom metric |
 | Unit testing          | JUnit 5, Mockito, AssertJ                                              |
 | Integration testing   | Spring Boot Test, MockMvc, real H2 database                            |
+| Test reporting        | Allure (`allure-junit5` + `allure-maven`) — human-readable HTML report of every test run |
 | Frontend (admin UI)   | Static HTML/CSS/vanilla JS (`src/main/resources/static`), no build step, calls the real REST API |
 | Manual API testing    | `requests.http` (IntelliJ/VS Code REST Client), `postman_collection.json` |
 
@@ -247,6 +248,30 @@ mvn test -Dtest=BookServiceTest                      # a single class
 - **From an IDE** (IntelliJ IDEA / VS Code with the Java extensions): right-click a test class or method
   → *Run*. Results show in the built-in test runner panel with a green/red tree per test, and you can
   re-run just the failed ones.
+
+- **Allure HTML report** — a browsable, human-readable report of the same run (per-suite pass/fail,
+  durations, a trend graph, failure stack traces), built from both the unit and integration tests with
+  no extra test code needed:
+
+  ```bash
+  mvn test                     # writes raw results to target/allure-results
+  mvn io.qameta.allure:allure-maven:2.15.2:report
+  ```
+
+  This generates a static site at `target/site/allure-maven-plugin/`. Because it fetches its data via
+  JS, opening `index.html` directly (`file://`) shows a blank page — serve the folder instead, e.g. with
+  the JDK's built-in server:
+
+  ```bash
+  cd target/site/allure-maven-plugin
+  ```
+
+  ```bash
+  jwebserver -p 8811
+  ```
+
+  then open `http://localhost:8811/`. (If you have the standalone Allure CLI installed, `mvn
+  io.qameta.allure:allure-maven:2.15.2:serve` does the build-and-serve-and-open in one step.)
 
 ## Observability: checking the span and the metric
 

@@ -20,6 +20,8 @@
     <properties>
         <java.version>21</java.version>
         <opentelemetry.version>1.41.0</opentelemetry.version>
+        <allure.version>2.29.1</allure.version>
+        <allure.maven.version>2.15.2</allure.maven.version>
     </properties>
 
     <dependencyManagement>
@@ -28,6 +30,13 @@
                 <groupId>io.opentelemetry</groupId>
                 <artifactId>opentelemetry-bom</artifactId>
                 <version>${opentelemetry.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.qameta.allure</groupId>
+                <artifactId>allure-bom</artifactId>
+                <version>${allure.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -80,6 +89,13 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Allure: human-readable HTML report of unit + integration test runs -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -87,6 +103,30 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- Points the raw per-test result JSON that allure-junit5 writes at target/
+                 (its default is the working directory) so `mvn clean` clears it and the
+                 allure-maven plugin below picks it up from the standard build output path.
+                 No AspectJ weaving here: that's only needed for Allure's @Step/@Attachment
+                 annotations, which this project's tests don't use. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+
+            <!-- Turns target/allure-results into a browsable HTML report:
+                 `mvn allure:report` (output in target/site/allure-maven-plugin)
+                 or `mvn allure:serve` (builds it and opens it in a browser). -->
+            <plugin>
+                <groupId>io.qameta.allure</groupId>
+                <artifactId>allure-maven</artifactId>
+                <version>${allure.maven.version}</version>
             </plugin>
         </plugins>
     </build>
