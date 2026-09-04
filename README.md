@@ -3,6 +3,12 @@
 A Library Management System REST API (plus a small admin UI) built to demonstrate REST API design,
 database interaction, automated testing, and observability practices in Java.
 
+## AI usage disclosure
+
+This project was built with AI coding agent assistance (Claude). The full prompt-by-prompt log —
+what was asked, what came back, and what was manually reviewed/adjusted afterward — is kept at
+[`src/docs/Progress log of the project.pdf`](src/docs/Progress%20log%20of%20the%20project.pdf).
+
 ## Technical stack and tools
 
 | Concern              | Tool / Library                                                        |
