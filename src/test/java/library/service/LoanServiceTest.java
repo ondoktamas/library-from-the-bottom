@@ -1,5 +1,7 @@
 package library.service;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import library.entity.Book;
 import library.entity.Borrower;
 import library.entity.Loan;
@@ -9,6 +11,7 @@ import library.repository.LoanRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,12 +34,14 @@ class LoanServiceTest {
     private LoanRepository loanRepository;
     @Mock
     private BookRepository bookRepository;
+    @Mock
+    private EntityManager entityManager;
 
     private LoanService loanService;
 
     @BeforeEach
     void setUp() {
-        loanService = new LoanService(loanRepository, bookRepository);
+        loanService = new LoanService(loanRepository, bookRepository, entityManager);
     }
 
     @Test
@@ -61,6 +67,12 @@ class LoanServiceTest {
         loanService.returnBook(1L);
 
         assertThat(book.getQuantity()).isEqualTo(1);
+        // The refresh is what makes the increment safe under concurrency: it
+        // re-reads the row under a write lock rather than trusting the possibly
+        // stale instance the loan dragged into the persistence context with it.
+        InOrder inOrder = inOrder(entityManager);
+        inOrder.verify(entityManager).flush();
+        inOrder.verify(entityManager).refresh(book, LockModeType.PESSIMISTIC_WRITE);
         verify(bookRepository).save(book);
         verify(loanRepository).delete(loan);
     }

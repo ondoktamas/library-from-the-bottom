@@ -1,5 +1,6 @@
 package library.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -31,6 +32,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateLoanException.class)
     public ResponseEntity<Map<String, Object>> handleDuplicateLoan(DuplicateLoanException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body(ex.getMessage()));
+    }
+
+    /**
+     * Backstop for the database constraints that guard the same rules the
+     * services check up front - most notably the unique (book_id, borrower_id)
+     * on loans. Reaching here means a concurrent request won a race the service
+     * layer expected to have serialised, which is a conflict, not a server
+     * fault. The exception's own message is not echoed back: it carries SQL and
+     * constraint names that callers have no business seeing.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(body("Request conflicts with the current state of the resource"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

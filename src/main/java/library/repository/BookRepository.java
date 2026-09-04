@@ -1,7 +1,24 @@
 package library.repository;
 
+import jakarta.persistence.LockModeType;
 import library.entity.Book;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+
+import java.util.Optional;
 
 public interface BookRepository extends JpaRepository<Book, String> {
+
+    /**
+     * Loads a book with a row-level write lock (SELECT ... FOR UPDATE) held until
+     * the surrounding transaction commits. Every path that changes {@code quantity}
+     * must go through this rather than {@link #findById}, otherwise concurrent
+     * borrows read the same stale count and each write their own decrement back -
+     * lost updates that hand out more copies than exist.
+     *
+     * <p>Callers must be {@code @Transactional}; a lock acquired outside a
+     * transaction would be released immediately and guarantee nothing.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Book> findWithLockById(String id);
 }

@@ -133,6 +133,18 @@ does not regenerate the ID** — it stays fixed so loan references and URLs neve
 ### Borrowing rules
 
 - A library can hold multiple copies of the same book — `quantity` tracks how many are currently free.
+- `quantity` is owned by the add / borrow / return flows and is **not** editable through `PUT`.
+  Editing a book changes its title/author/year/edition only; a `quantity` in the request body is
+  ignored, so an edit made while copies are out on loan can no longer desynchronise the count from
+  the outstanding loans. Add more copies with `POST /api/books` (which adds onto the existing count).
+- **Known limitation — stock can only go up.** Because `quantity` records how many copies are
+  *available* rather than how many the library *owns*, there is no safe way to reduce it: subtracting
+  a copy that happens to be out on loan would leave the count inconsistent with the open loans, which
+  is exactly the bug that removing `quantity` from `PUT` fixes. So a copy that is lost, damaged or
+  withdrawn cannot currently be written off — the only way to remove stock is `DELETE /api/books/{bookId}`,
+  which removes the book entirely (along with its active loans). Fixing this properly means recording
+  total copies owned and deriving availability as `totalCopies − activeLoans`; then a write-off is
+  just a decrement of the total, rejected when it would drop below the number currently on loan.
 - Adding a book whose title/author/year/edition match an existing one (i.e. generates the same ID)
   does **not** fail with a conflict — it adds the new request's `quantity` onto the existing book's
   `quantity` instead, and returns the updated book. Borrowers only ever see one entry per book.
@@ -150,7 +162,7 @@ does not regenerate the ID** — it stays fixed so loan references and URLs neve
 |--------|-------------------------------|----------------------------------------------------------------|
 | GET    | `/api/books`                   | List books, optionally filtered by `?id=`, `?title=`, `?author=` (title/author match case-insensitively, substring) |
 | POST   | `/api/books`                   | Add a book (ID generated server-side); if one with the same ID already exists, adds this request's `quantity` onto it instead of creating a duplicate |
-| PUT    | `/api/books/{bookId}`          | Update a book's title/author/year/edition (ID unchanged)     |
+| PUT    | `/api/books/{bookId}`          | Update a book's title/author/year/edition (ID unchanged; `quantity` is not editable here and is ignored if sent) |
 | DELETE | `/api/books/{bookId}`          | Delete a book (also removes its active loan, if any)         |
 | POST   | `/api/books/{bookId}/borrow`   | Borrow a book (body: `{"borrowerId": "..."}`)                |
 | GET    | `/api/borrowers`                | List all borrowers                                            |

@@ -26,8 +26,21 @@ public class OpenTelemetryConfig {
 
     private static final String INSTRUMENTATION_NAME = "library-management-system";
 
+    /**
+     * Deliberately {@code build()} rather than {@code buildAndRegisterGlobal()}:
+     * the latter writes a JVM-wide singleton that may only be set once, so a
+     * second application context in the same JVM (any test needing a different
+     * profile, property set, or {@code @MockBean}) would fail to start with
+     * "GlobalOpenTelemetry.set has already been called". Nothing here reads
+     * {@code GlobalOpenTelemetry} - the SDK is injected as a bean instead.
+     *
+     * <p>Declared as {@link OpenTelemetrySdk} (not the {@link OpenTelemetry}
+     * interface) so Spring's inferred destroy method finds {@code close()} and
+     * shuts the providers down on context close, flushing buffered spans and
+     * stopping the periodic metric reader thread.
+     */
     @Bean
-    public OpenTelemetry openTelemetry() {
+    public OpenTelemetrySdk openTelemetry() {
         Resource resource = Resource.getDefault()
                 .merge(Resource.builder().put("service.name", INSTRUMENTATION_NAME).build());
 
@@ -46,7 +59,7 @@ public class OpenTelemetryConfig {
         return OpenTelemetrySdk.builder()
                 .setTracerProvider(tracerProvider)
                 .setMeterProvider(meterProvider)
-                .buildAndRegisterGlobal();
+                .build();
     }
 
     @Bean

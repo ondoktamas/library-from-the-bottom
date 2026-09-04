@@ -1,6 +1,7 @@
 package library.service;
 
 import library.dto.BookRequest;
+import library.dto.BookUpdateRequest;
 import library.entity.Book;
 import library.entity.Borrower;
 import library.entity.Loan;
@@ -78,19 +79,19 @@ class BookServiceTest {
     }
 
     @Test
-    void updateBook_updatesMutableFieldsButKeepsId() {
+    void updateBook_updatesDescriptiveFieldsButKeepsIdAndAvailability() {
         Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
         when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Book result = bookService.updateBook(book.getId(),
-                new BookRequest("Clean Code (Revised)", "Robert C. Martin", 2009, "2nd", 5));
+                new BookUpdateRequest("Clean Code (Revised)", "Robert C. Martin", 2009, "2nd"));
 
         assertThat(result.getId()).isEqualTo("robert_c_martin_clean_code_2008_1st");
         assertThat(result.getTitle()).isEqualTo("Clean Code (Revised)");
         assertThat(result.getYearOfPublication()).isEqualTo(2009);
         assertThat(result.getEdition()).isEqualTo("2nd");
-        assertThat(result.getQuantity()).isEqualTo(5);
+        assertThat(result.getQuantity()).as("an edit must not disturb availability").isEqualTo(2);
     }
 
     @Test
@@ -98,7 +99,7 @@ class BookServiceTest {
         when(bookRepository.findById("missing_book")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> bookService.updateBook("missing_book",
-                new BookRequest("Title", "Author", 2020, "1st", 1)))
+                new BookUpdateRequest("Title", "Author", 2020, "1st")))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -148,7 +149,7 @@ class BookServiceTest {
     void borrowBook_decrementsQuantityAndCreatesLoan() {
         Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
         Borrower borrower = new Borrower("jane_doe_19900512", "Jane Doe", LocalDate.of(1990, 5, 12), "123 Main St");
-        when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        when(bookRepository.findWithLockById(book.getId())).thenReturn(Optional.of(book));
         when(borrowerRepository.findById(borrower.getId())).thenReturn(Optional.of(borrower));
         when(loanRepository.existsByBookIdAndBorrowerId(book.getId(), borrower.getId())).thenReturn(false);
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -164,7 +165,7 @@ class BookServiceTest {
 
     @Test
     void borrowBook_throwsWhenBookNotFound() {
-        when(bookRepository.findById("missing_book")).thenReturn(Optional.empty());
+        when(bookRepository.findWithLockById("missing_book")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> bookService.borrowBook("missing_book", "jane_doe_19900512"))
                 .isInstanceOf(NotFoundException.class);
@@ -173,7 +174,7 @@ class BookServiceTest {
     @Test
     void borrowBook_throwsWhenBorrowerNotFound() {
         Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
-        when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        when(bookRepository.findWithLockById(book.getId())).thenReturn(Optional.of(book));
         when(borrowerRepository.findById("missing_borrower")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> bookService.borrowBook(book.getId(), "missing_borrower"))
@@ -184,7 +185,7 @@ class BookServiceTest {
     void borrowBook_throwsWhenQuantityIsZero() {
         Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 0);
         Borrower borrower = new Borrower("jane_doe_19900512", "Jane Doe", LocalDate.of(1990, 5, 12), "123 Main St");
-        when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        when(bookRepository.findWithLockById(book.getId())).thenReturn(Optional.of(book));
         when(borrowerRepository.findById(borrower.getId())).thenReturn(Optional.of(borrower));
 
         assertThatThrownBy(() -> bookService.borrowBook(book.getId(), borrower.getId()))
@@ -195,7 +196,7 @@ class BookServiceTest {
     void borrowBook_throwsWhenSameBorrowerAlreadyHasThisBook() {
         Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
         Borrower borrower = new Borrower("jane_doe_19900512", "Jane Doe", LocalDate.of(1990, 5, 12), "123 Main St");
-        when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        when(bookRepository.findWithLockById(book.getId())).thenReturn(Optional.of(book));
         when(borrowerRepository.findById(borrower.getId())).thenReturn(Optional.of(borrower));
         when(loanRepository.existsByBookIdAndBorrowerId(book.getId(), borrower.getId())).thenReturn(true);
 

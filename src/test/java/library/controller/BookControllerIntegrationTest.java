@@ -2,6 +2,7 @@ package library.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import library.dto.BookRequest;
+import library.dto.BookUpdateRequest;
 import library.dto.BorrowRequest;
 import library.dto.BorrowerRequest;
 import org.junit.jupiter.api.Test;
@@ -130,24 +131,76 @@ class BookControllerIntegrationTest {
     }
 
     @Test
-    void updateBook_changesFieldsButKeepsGeneratedId() throws Exception {
+    void updateBook_changesFieldsButKeepsGeneratedIdAndAvailability() throws Exception {
         String bookId = createBook("1984", "George Orwell", 1949, "1st", 2);
 
         mockMvc.perform(put("/api/books/{bookId}", bookId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new BookRequest("Nineteen Eighty-Four", "George Orwell", 1949, "2nd", 5))))
+                        .content(objectMapper.writeValueAsString(new BookUpdateRequest("Nineteen Eighty-Four", "George Orwell", 1949, "2nd"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(bookId))
                 .andExpect(jsonPath("$.title").value("Nineteen Eighty-Four"))
                 .andExpect(jsonPath("$.edition").value("2nd"))
-                .andExpect(jsonPath("$.quantity").value(5));
+                .andExpect(jsonPath("$.quantity").value(2));
+    }
+
+    @Test
+    void updateBook_ignoresAQuantityFieldSentByOlderClients() throws Exception {
+        String bookId = createBook("1984", "George Orwell", 1949, "1st", 2);
+
+        // The pre-change payload shape, quantity included. It must still be
+        // accepted - and the quantity must still be ignored.
+        String legacyJson = """
+                {"title":"Nineteen Eighty-Four","author":"George Orwell","yearOfPublication":1949,"edition":"2nd","quantity":99}""";
+
+        mockMvc.perform(put("/api/books/{bookId}", bookId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(legacyJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Nineteen Eighty-Four"))
+                .andExpect(jsonPath("$.quantity").value(2));
+    }
+
+    /**
+     * Regression test for the accounting bug: editing a book used to overwrite
+     * availability with no regard for copies already out on loan, so returning
+     * the loan afterwards credited a copy the library never owned.
+     */
+    @Test
+    void updateBook_whileACopyIsOnLoan_doesNotInventCopiesWhenItComesBack() throws Exception {
+        String bookId = createBook("Dune", "Frank Herbert", 1965, "1st", 1);
+        String borrowerId = createBorrower("Jane Doe", LocalDate.of(1990, 5, 12), "123 Main St");
+
+        String loanJson = mockMvc.perform(post("/api/books/{bookId}/borrow", bookId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new BorrowRequest(borrowerId))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long loanId = objectMapper.readTree(loanJson).get("loanId").asLong();
+
+        mockMvc.perform(get("/api/books").param("id", bookId))
+                .andExpect(jsonPath("$[0].quantity").value(0));
+
+        // Librarian corrects the edition while the only copy is out.
+        mockMvc.perform(put("/api/books/{bookId}", bookId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new BookUpdateRequest("Dune", "Frank Herbert", 1965, "2nd"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quantity").value(0));
+
+        mockMvc.perform(delete("/api/loans/{loanId}", loanId))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/books").param("id", bookId))
+                .andExpect(jsonPath("$[0].edition").value("2nd"))
+                .andExpect(jsonPath("$[0].quantity").value(1));
     }
 
     @Test
     void updateBook_whenNotFound_returnsNotFound() throws Exception {
         mockMvc.perform(put("/api/books/{bookId}", "missing_book")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new BookRequest("Title", "Author", 2020, "1st", 1))))
+                        .content(objectMapper.writeValueAsString(new BookUpdateRequest("Title", "Author", 2020, "1st"))))
                 .andExpect(status().isNotFound());
     }
 

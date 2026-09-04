@@ -317,8 +317,15 @@ function openBookModal(book = null) {
     <div class="field"><label>Author</label><input name="author" required value="${book ? escapeAttr(book.author) : ""}"></div>
     <div class="field"><label>Year of publication</label><input name="yearOfPublication" type="number" min="1" required value="${book ? book.yearOfPublication : ""}"></div>
     <div class="field"><label>Edition</label><input name="edition" required value="${book ? escapeAttr(book.edition) : ""}"></div>
-    <div class="field"><label>Quantity</label><input name="quantity" type="number" min="0" step="1" required value="${book ? book.quantity : ""}"></div>
-    ${book ? `<div class="field"><label>ID (fixed, not affected by edits)</label><input value="${escapeAttr(book.id)}" readonly></div>` : ""}
+    ${
+      book
+        // Availability is owned by the add / borrow / return flows - an edit that
+        // overwrote it would lose track of copies currently out on loan, so it is
+        // shown here for context but not editable.
+        ? `<div class="field"><label>Available copies (managed by borrowing and returning)</label><input value="${escapeAttr(String(book.quantity))}" readonly></div>
+           <div class="field"><label>ID (fixed, not affected by edits)</label><input value="${escapeAttr(book.id)}" readonly></div>`
+        : `<div class="field"><label>Quantity</label><input name="quantity" type="number" min="0" step="1" required value=""></div>`
+    }
   `;
   overlay.hidden = false;
 }
@@ -359,13 +366,13 @@ modalForm.addEventListener("submit", async (e) => {
         author: formData.get("author"),
         yearOfPublication: Number(formData.get("yearOfPublication")),
         edition: formData.get("edition"),
-        quantity: Number(formData.get("quantity")),
       };
       if (modalContext.id) {
+        // No quantity on update: availability belongs to the borrow/return flow.
         await api.updateBook(modalContext.id, payload);
         showToast("Book updated");
       } else {
-        await api.addBook(payload);
+        await api.addBook({ ...payload, quantity: Number(formData.get("quantity")) });
         showToast("Book added");
       }
     } else if (modalContext.type === "borrower") {

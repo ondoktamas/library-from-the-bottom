@@ -39,12 +39,18 @@ public class Book {
         this.quantity = quantity;
     }
 
-    public void update(String title, String author, Integer yearOfPublication, String edition, Integer quantity) {
+    /**
+     * Updates the descriptive fields only. {@code quantity} is intentionally not
+     * a parameter: it is availability, not a description, and is maintained by
+     * {@link #increaseQuantity}, {@link #decrementQuantity} and
+     * {@link #incrementQuantity} as copies are added, borrowed and returned.
+     * Overwriting it from an edit loses track of copies that are out on loan.
+     */
+    public void update(String title, String author, Integer yearOfPublication, String edition) {
         this.title = title;
         this.author = author;
         this.yearOfPublication = yearOfPublication;
         this.edition = edition;
-        this.quantity = quantity;
     }
 
     public boolean hasAvailableCopies() {

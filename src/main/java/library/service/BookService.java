@@ -1,6 +1,7 @@
 package library.service;
 
 import library.dto.BookRequest;
+import library.dto.BookUpdateRequest;
 import library.entity.Book;
 import library.entity.Borrower;
 import library.entity.Loan;
@@ -62,10 +63,11 @@ public class BookService {
         return bookRepository.save(book);
     }
 
-    public Book updateBook(String id, BookRequest request) {
+    @Transactional
+    public Book updateBook(String id, BookUpdateRequest request) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Book not found: " + id));
-        book.update(request.title(), request.author(), request.yearOfPublication(), request.edition(), request.quantity());
+        book.update(request.title(), request.author(), request.yearOfPublication(), request.edition());
         return bookRepository.save(book);
     }
 
@@ -85,7 +87,12 @@ public class BookService {
             span.setAttribute("book.id", bookId);
             span.setAttribute("borrower.id", borrowerId);
 
-            Book book = bookRepository.findById(bookId)
+            // Locked read: serialises concurrent borrows of this book so the
+            // availability check below and the decrement that follows cannot be
+            // interleaved by another request. Also closes the duplicate-loan
+            // race, since a competing borrow for the same book can only reach
+            // the check after this transaction has committed its loan.
+            Book book = bookRepository.findWithLockById(bookId)
                     .orElseThrow(() -> new NotFoundException("Book not found: " + bookId));
             Borrower borrower = borrowerRepository.findById(borrowerId)
                     .orElseThrow(() -> new NotFoundException("Borrower not found: " + borrowerId));

@@ -2,6 +2,7 @@ package library.controller;
 
 import library.dto.BookRequest;
 import library.dto.BookResponse;
+import library.dto.BookUpdateRequest;
 import library.dto.BorrowRequest;
 import library.dto.BorrowResponse;
 import library.entity.Book;
@@ -46,7 +47,7 @@ public class BookController {
     }
 
     @PutMapping("/{bookId}")
-    public BookResponse updateBook(@PathVariable String bookId, @Valid @RequestBody BookRequest request) {
+    public BookResponse updateBook(@PathVariable String bookId, @Valid @RequestBody BookUpdateRequest request) {
         return toResponse(bookService.updateBook(bookId, request));
     }
 
