@@ -6,3 +6,6 @@ target/
 .vscode/
 .DS_Store
 .allure/
+.postman/
+postman/collections/
+postman/globals/

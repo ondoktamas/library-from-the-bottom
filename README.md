@@ -7,7 +7,7 @@ database interaction, automated testing, and observability practices in Java.
 
 This project was built with AI coding agent assistance (Claude). The full prompt-by-prompt log —
 what was asked, what came back, and what was manually reviewed/adjusted afterward — is kept at
-[`src/docs/Progress log of the project.pdf`](src/docs/Progress%20log%20of%20the%20project.pdf).
+[`docs/Progress log of the project v3.pdf`](docs/Progress%20log%20of%20the%20project%20v3.pdf).
 
 ## Technical stack and tools
 
@@ -168,6 +168,8 @@ duplicate *book* is not an error, see above).
 
 ### Example requests
 
+**macOS / Linux** (bash/zsh):
+
 ```bash
 curl -X POST http://localhost:8080/api/books \
   -H "Content-Type: application/json" \
@@ -177,7 +179,7 @@ curl "http://localhost:8080/api/books?title=clean&author=martin"
 
 curl -X POST http://localhost:8080/api/borrowers \
   -H "Content-Type: application/json" \
-  -d '{"name":"Jane Doe","dateOfBirth":"1990-05-12","address":"123 Main St"}'
+  -d '{"name":"Alan Turing","dateOfBirth":"1912-06-23","address":"Bletchley Park"}'
 
 curl -X POST http://localhost:8080/api/books/robert_c_martin_clean_code_2008_1st/borrow \
   -H "Content-Type: application/json" \
@@ -187,6 +189,30 @@ curl http://localhost:8080/api/borrowers/jane_doe_19900512/books
 
 curl -X DELETE http://localhost:8080/api/loans/1
 ```
+
+**Windows** (PowerShell): PowerShell's built-in `curl` alias (`Invoke-WebRequest`) doesn't understand curl's
+flags, and PowerShell's own argument passing mangles `-d`'s JSON body even when you call the real
+`curl.exe` directly — the embedded double quotes get silently stripped, corrupting the JSON before it
+reaches the server. Fix: call `curl.exe` explicitly, and put `--%` (PowerShell's "stop parsing" token)
+right after it on any command with a `-d` body, so the rest of the line reaches curl untouched:
+
+```bash
+curl.exe --% -X POST http://localhost:8080/api/books -H "Content-Type: application/json" -d "{\"title\":\"Clean Code\",\"author\":\"Robert C. Martin\",\"yearOfPublication\":2008,\"edition\":\"1st\",\"quantity\":3}"
+
+curl.exe "http://localhost:8080/api/books?title=clean&author=martin"
+
+curl.exe --% -X POST http://localhost:8080/api/borrowers -H "Content-Type: application/json" -d "{\"name\":\"Alan Turing\",\"dateOfBirth\":\"1912-06-23\",\"address\":\"Bletchley Park\"}"
+
+curl.exe --% -X POST http://localhost:8080/api/books/robert_c_martin_clean_code_2008_1st/borrow -H "Content-Type: application/json" -d "{\"borrowerId\":\"jane_doe_19900512\"}"
+
+curl.exe http://localhost:8080/api/borrowers/jane_doe_19900512/books
+
+curl.exe -X DELETE http://localhost:8080/api/loans/1
+```
+
+(Both sets use `Alan Turing` rather than `Jane Doe` for the "create borrower" example — `jane_doe_19900512`
+already exists in the seed data in [`data.sql`](src/main/resources/data.sql), so recreating her generates
+the same ID and gets a `409 Conflict`. The later steps borrow against the pre-seeded Jane Doe on purpose.)
 
 ## Admin UI
 
@@ -203,6 +229,15 @@ borrow a book, hit the 404/409/400 error cases):
   "REST Client" extension, and run requests top to bottom.
 - [`postman_collection.json`](postman_collection.json) — import into Postman/Insomnia and run via the
   Collection Runner; `bookId`/`borrowerId` are captured automatically from responses.
+
+**`requests.http` in VS Code (REST Client extension) — one gap to know about**: the same file, same
+click-through via the "Send Request" CodeLens link above each request, but the `> {% client.global.set(...)
+%}` blocks are IntelliJ-specific scripting syntax that the REST Client extension doesn't execute. So
+`{{bookId}}`, `{{borrowerId}}`, and `{{loanId}}` won't auto-populate in VS Code. Practically, that means
+after running the "Add a book" request, open its response, copy the `id` value, and paste it in place of
+`{{bookId}}` in the requests below (same for `borrowerId` after registering a borrower, and `loanId` after
+the borrow request) — for those four variables specifically. Everything else (the `@baseUrl` variable, all
+the plain requests) works identically in both editors.
 
 ## Running the tests, and checking the results
 
@@ -295,11 +330,32 @@ them.
 3. Look at the terminal running the app. A line like this appears immediately:
 
    ```
-   INFO ... i.o.e.logging.LoggingSpanExporter : 'borrow-book' : 6622366f7e7b373e8125249a2bef4e9e 1017d9a6fe4da721 INTERNAL [tracer: library-management-system:] AttributesMap{data={book.id=robert_c_martin_clean_code_2008_1st, borrower.id=jane_doe_19900512}, capacity=128, totalAddedValues=2}
+   INFO ... i.o.e.logging.LoggingSpanExporter : 'borrow-book' : fb9f4b92c4b26731ddc601367e76cfd2 090d3a8fa3ba25f0 INTERNAL [tracer: library-management-system:] AttributesMap{data={loan.id=1, borrower.id=jane_doe_19900512, book.id=robert_c_martin_clean_code_2008_1st, book.quantityRemaining=1}, capacity=128, totalAddedValues=4}
    ```
 
-   That's the `borrow-book` span: its trace ID, span ID, kind (`INTERNAL`), and the two attributes
-   (`book.id`, `borrower.id`) it was tagged with in [`BookService.java`](src/main/java/library/service/BookService.java).
+   That's the `borrow-book` span: its trace ID, span ID, kind (`INTERNAL`), and the attributes it was
+   tagged with in [`BookService.java`](src/main/java/library/service/BookService.java) — `book.id` and
+   `borrower.id` are set up front, and `loan.id` / `book.quantityRemaining` are added once the borrow
+   actually succeeds.
+
+4. Trigger a *failing* borrow (e.g. an unknown `borrowerId`) and the span still prints, but with only the
+   up-front attributes — `loan.id`/`book.quantityRemaining` are never reached:
+
+   ```
+   INFO ... i.o.e.logging.LoggingSpanExporter : 'borrow-book' : 7708262998f987f9fd1dfe4748b96f6a d035f4ad83460845 INTERNAL [tracer: library-management-system:] AttributesMap{data={borrower.id=does_not_exist, book.id=robert_c_martin_clean_code_2008_1st}, capacity=128, totalAddedValues=2}
+   ```
+
+   On any failure (not-found, no copies left, duplicate loan), `BookService.borrowBook()` also calls
+   `span.recordException(e)` and `span.setStatus(StatusCode.ERROR, e.getMessage())` before the span ends,
+   so the failure is captured on the span itself, not just returned as an HTTP error.
+
+   **Limitation**: that error status and exception aren't visible in this console output. The bundled
+   `LoggingSpanExporter` prints a compact one-liner (trace ID, span ID, kind, attributes) that doesn't
+   include span status or events — the `ERROR` status and the recorded exception (type, message, stack
+   trace) exist on the underlying `SpanData`, but this exporter just doesn't print them. A real backend
+   (see "Swapping in a real backend later" below) would show a failed borrow as a red/errored span with
+   the exception attached, which is the whole point of recording it — the console exporter just can't
+   display it locally.
 
 The same span also prints during `mvn test`, since several integration tests call the borrow endpoint —
 scroll the test console output for `LoggingSpanExporter` lines.

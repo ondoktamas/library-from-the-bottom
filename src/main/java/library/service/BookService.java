@@ -13,6 +13,7 @@ import library.repository.BorrowerRepository;
 import library.repository.LoanRepository;
 import library.util.IdGenerator;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,7 +103,16 @@ public class BookService {
             Loan loan = loanRepository.save(new Loan(book, borrower, Instant.now()));
             metrics.recordBorrow(bookId, borrowerId);
 
+            if (loan.getId() != null) {
+                span.setAttribute("loan.id", loan.getId());
+            }
+            span.setAttribute("book.quantityRemaining", book.getQuantity());
+
             return loan;
+        } catch (RuntimeException e) {
+            span.recordException(e);
+            span.setStatus(StatusCode.ERROR, e.getMessage());
+            throw e;
         } finally {
             span.end();
         }
