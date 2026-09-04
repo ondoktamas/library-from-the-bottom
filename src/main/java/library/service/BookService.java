@@ -7,6 +7,8 @@ import library.entity.Borrower;
 import library.entity.Loan;
 import library.exception.BookNotAvailableException;
 import library.exception.DuplicateLoanException;
+import library.exception.DuplicateResourceException;
+import library.exception.InvalidRequestException;
 import library.exception.NotFoundException;
 import library.observability.LibraryMetrics;
 import library.repository.BookRepository;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class BookService {
@@ -52,23 +55,75 @@ public class BookService {
                 .toList();
     }
 
+    @Transactional
     public Book addBook(BookRequest request) {
-        String id = IdGenerator.bookId(request.author(), request.title(), request.yearOfPublication(), request.edition());
-        Book book = bookRepository.findById(id)
+        requireUsableSlugs(request.title(), request.author(), request.edition());
+
+        // Matched on identity, not on the slug id. Looking the id up instead
+        // used to miss any book that had since been renamed, silently creating
+        // a second row for a book the library already had.
+        Book book = findByNaturalKey(request.title(), request.author(), request.yearOfPublication(), request.edition())
                 .map(existing -> {
                     existing.increaseQuantity(request.quantity());
                     return existing;
                 })
-                .orElseGet(() -> new Book(id, request.title(), request.author(), request.yearOfPublication(), request.edition(), request.quantity()));
+                .orElseGet(() -> new Book(
+                        generateAvailableId(request.author(), request.title(), request.yearOfPublication(), request.edition()),
+                        request.title(), request.author(), request.yearOfPublication(), request.edition(), request.quantity()));
         return bookRepository.save(book);
     }
 
     @Transactional
     public Book updateBook(String id, BookUpdateRequest request) {
+        requireUsableSlugs(request.title(), request.author(), request.edition());
+
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Book not found: " + id));
+
+        // An edit changes the book's identity, so it can collide with a book that
+        // already exists. Rejecting is the only honest option: merging would
+        // destroy one of the two rows and their loans.
+        findByNaturalKey(request.title(), request.author(), request.yearOfPublication(), request.edition())
+                .filter(clash -> !clash.getId().equals(book.getId()))
+                .ifPresent(clash -> {
+                    throw new DuplicateResourceException(
+                            "Another book with the same author, title, year and edition already exists: " + clash.getId());
+                });
+
         book.update(request.title(), request.author(), request.yearOfPublication(), request.edition());
         return bookRepository.save(book);
+    }
+
+    private Optional<Book> findByNaturalKey(String title, String author, Integer yearOfPublication, String edition) {
+        return bookRepository.findByNormalizedAuthorAndNormalizedTitleAndYearOfPublicationAndNormalizedEdition(
+                IdGenerator.normalize(author), IdGenerator.normalize(title), yearOfPublication, IdGenerator.normalize(edition));
+    }
+
+    /**
+     * Slugs are lossy, so two different books can want the same id. The first one
+     * to be added keeps the clean slug and later arrivals get a numeric suffix.
+     * Previously the collision was resolved by treating the second book as the
+     * first, merging its quantity in and discarding its title and author.
+     */
+    private String generateAvailableId(String author, String title, int yearOfPublication, String edition) {
+        String baseId = IdGenerator.bookId(author, title, yearOfPublication, edition);
+        String candidate = baseId;
+        for (int suffix = 2; bookRepository.existsById(candidate); suffix++) {
+            candidate = baseId + "_" + suffix;
+        }
+        return candidate;
+    }
+
+    private void requireUsableSlugs(String title, String author, String edition) {
+        if (!IdGenerator.hasUsableSlug(title)) {
+            throw new InvalidRequestException("title must contain at least one letter or digit");
+        }
+        if (!IdGenerator.hasUsableSlug(author)) {
+            throw new InvalidRequestException("author must contain at least one letter or digit");
+        }
+        if (!IdGenerator.hasUsableSlug(edition)) {
+            throw new InvalidRequestException("edition must contain at least one letter or digit");
+        }
     }
 
     @Transactional

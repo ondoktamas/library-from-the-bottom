@@ -7,6 +7,8 @@ import library.entity.Borrower;
 import library.entity.Loan;
 import library.exception.BookNotAvailableException;
 import library.exception.DuplicateLoanException;
+import library.exception.DuplicateResourceException;
+import library.exception.InvalidRequestException;
 import library.exception.NotFoundException;
 import library.observability.LibraryMetrics;
 import library.repository.BookRepository;
@@ -56,7 +58,7 @@ class BookServiceTest {
     @Test
     void addBook_generatesIdFromAuthorTitleYearAndEdition() {
         BookRequest request = new BookRequest("Clean Code", "Robert C. Martin", 2008, "1st", 3);
-        when(bookRepository.findById("robert_c_martin_clean_code_2008_1st")).thenReturn(Optional.empty());
+        stubNaturalKeyLookup("robert c. martin", "clean code", 2008, "1st", Optional.empty());
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Book result = bookService.addBook(request);
@@ -66,10 +68,10 @@ class BookServiceTest {
     }
 
     @Test
-    void addBook_whenGeneratedIdAlreadyExists_increasesQuantityInstead() {
+    void addBook_whenTheSameBookAlreadyExists_increasesQuantityInstead() {
         Book existing = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
         BookRequest request = new BookRequest("Clean Code", "Robert C. Martin", 2008, "1st", 3);
-        when(bookRepository.findById("robert_c_martin_clean_code_2008_1st")).thenReturn(Optional.of(existing));
+        stubNaturalKeyLookup("robert c. martin", "clean code", 2008, "1st", Optional.of(existing));
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Book result = bookService.addBook(request);
@@ -79,9 +81,34 @@ class BookServiceTest {
     }
 
     @Test
+    void addBook_whenADifferentBookWantsTheSameSlug_createsASuffixedIdInsteadOfMerging() {
+        // "Robert C. Martin!" and "Clean-Code" slug identically to the book below,
+        // but they are a different book and must not be absorbed into it.
+        BookRequest request = new BookRequest("Clean-Code", "Robert C. Martin!", 2008, "1st", 7);
+        stubNaturalKeyLookup("robert c. martin!", "clean-code", 2008, "1st", Optional.empty());
+        when(bookRepository.existsById("robert_c_martin_clean_code_2008_1st")).thenReturn(true);
+        when(bookRepository.existsById("robert_c_martin_clean_code_2008_1st_2")).thenReturn(false);
+        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Book result = bookService.addBook(request);
+
+        assertThat(result.getId()).isEqualTo("robert_c_martin_clean_code_2008_1st_2");
+        assertThat(result.getTitle()).as("its own title must survive").isEqualTo("Clean-Code");
+        assertThat(result.getAuthor()).isEqualTo("Robert C. Martin!");
+        assertThat(result.getQuantity()).isEqualTo(7);
+    }
+
+    @Test
+    void addBook_whenAFieldHasNoUsableSlug_isRejected() {
+        assertThatThrownBy(() -> bookService.addBook(new BookRequest("!!!", "???", 2020, "1st", 1)))
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
     void updateBook_updatesDescriptiveFieldsButKeepsIdAndAvailability() {
         Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
         when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        stubNaturalKeyLookup("robert c. martin", "clean code (revised)", 2009, "2nd", Optional.empty());
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Book result = bookService.updateBook(book.getId(),
@@ -101,6 +128,39 @@ class BookServiceTest {
         assertThatThrownBy(() -> bookService.updateBook("missing_book",
                 new BookUpdateRequest("Title", "Author", 2020, "1st")))
                 .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void updateBook_whenItWouldCollideWithAnotherBook_isRejected() {
+        Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
+        Book other = new Book("joshua_bloch_effective_java_2018_3rd", "Effective Java", "Joshua Bloch", 2018, "3rd", 1);
+        when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        stubNaturalKeyLookup("joshua bloch", "effective java", 2018, "3rd", Optional.of(other));
+
+        assertThatThrownBy(() -> bookService.updateBook(book.getId(),
+                new BookUpdateRequest("Effective Java", "Joshua Bloch", 2018, "3rd")))
+                .isInstanceOf(DuplicateResourceException.class);
+
+        assertThat(book.getTitle()).as("the rejected edit must not have been applied").isEqualTo("Clean Code");
+    }
+
+    @Test
+    void updateBook_matchingItsOwnNaturalKey_isNotTreatedAsACollision() {
+        Book book = new Book("robert_c_martin_clean_code_2008_1st", "Clean Code", "Robert C. Martin", 2008, "1st", 2);
+        when(bookRepository.findById(book.getId())).thenReturn(Optional.of(book));
+        // Re-saving a book unchanged finds itself; that is not a clash.
+        stubNaturalKeyLookup("robert c. martin", "clean code", 2008, "1st", Optional.of(book));
+        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Book result = bookService.updateBook(book.getId(),
+                new BookUpdateRequest("Clean Code", "Robert C. Martin", 2008, "1st"));
+
+        assertThat(result).isSameAs(book);
+    }
+
+    private void stubNaturalKeyLookup(String author, String title, int year, String edition, Optional<Book> result) {
+        when(bookRepository.findByNormalizedAuthorAndNormalizedTitleAndYearOfPublicationAndNormalizedEdition(
+                author, title, year, edition)).thenReturn(result);
     }
 
     @Test

@@ -5,17 +5,21 @@
 -- Not loaded during tests - see spring.sql.init.mode=never on the integration
 -- test classes.
 
-INSERT INTO books (id, title, author, year_of_publication, edition, quantity) VALUES
-('robert_c_martin_clean_code_2008_1st', 'Clean Code', 'Robert C. Martin', 2008, '1st', 2),
-('joshua_bloch_effective_java_2018_3rd', 'Effective Java', 'Joshua Bloch', 2018, '3rd', 3),
-('andrew_hunt_the_pragmatic_programmer_1999_1st', 'The Pragmatic Programmer', 'Andrew Hunt', 1999, '1st', 1),
-('erich_gamma_design_patterns_1994_1st', 'Design Patterns', 'Erich Gamma', 1994, '1st', 2),
-('george_orwell_1984_1949_1st', '1984', 'George Orwell', 1949, '1st', 4),
-('aldous_huxley_brave_new_world_1932_1st', 'Brave New World', 'Aldous Huxley', 1932, '1st', 1),
-('frank_herbert_dune_1965_1st', 'Dune', 'Frank Herbert', 1965, '1st', 3),
-('j_r_r_tolkien_the_hobbit_1937_1st', 'The Hobbit', 'J.R.R. Tolkien', 1937, '1st', 2),
-('yuval_noah_harari_sapiens_2011_1st', 'Sapiens', 'Yuval Noah Harari', 2011, '1st', 0),
-('gabriel_garcia_marquez_cien_anos_de_soledad_1967_1st', 'Cien Años de Soledad', 'Gabriel García Márquez', 1967, '1st', 1);
+-- normalized_* are the natural-key columns: lowercased, whitespace-collapsed
+-- copies of author/title/edition that decide whether two rows are the same book.
+-- Unlike the id they keep punctuation and diacritics, so they are NOT simply the
+-- id split back up (see IdGenerator.normalize).
+INSERT INTO books (id, title, author, year_of_publication, edition, quantity, normalized_title, normalized_author, normalized_edition) VALUES
+('robert_c_martin_clean_code_2008_1st', 'Clean Code', 'Robert C. Martin', 2008, '1st', 2, 'clean code', 'robert c. martin', '1st'),
+('joshua_bloch_effective_java_2018_3rd', 'Effective Java', 'Joshua Bloch', 2018, '3rd', 3, 'effective java', 'joshua bloch', '3rd'),
+('andrew_hunt_the_pragmatic_programmer_1999_1st', 'The Pragmatic Programmer', 'Andrew Hunt', 1999, '1st', 1, 'the pragmatic programmer', 'andrew hunt', '1st'),
+('erich_gamma_design_patterns_1994_1st', 'Design Patterns', 'Erich Gamma', 1994, '1st', 2, 'design patterns', 'erich gamma', '1st'),
+('george_orwell_1984_1949_1st', '1984', 'George Orwell', 1949, '1st', 4, '1984', 'george orwell', '1st'),
+('aldous_huxley_brave_new_world_1932_1st', 'Brave New World', 'Aldous Huxley', 1932, '1st', 1, 'brave new world', 'aldous huxley', '1st'),
+('frank_herbert_dune_1965_1st', 'Dune', 'Frank Herbert', 1965, '1st', 3, 'dune', 'frank herbert', '1st'),
+('j_r_r_tolkien_the_hobbit_1937_1st', 'The Hobbit', 'J.R.R. Tolkien', 1937, '1st', 2, 'the hobbit', 'j.r.r. tolkien', '1st'),
+('yuval_noah_harari_sapiens_2011_1st', 'Sapiens', 'Yuval Noah Harari', 2011, '1st', 0, 'sapiens', 'yuval noah harari', '1st'),
+('gabriel_garcia_marquez_cien_anos_de_soledad_1967_1st', 'Cien Años de Soledad', 'Gabriel García Márquez', 1967, '1st', 1, 'cien años de soledad', 'gabriel garcía márquez', '1st');
 
 INSERT INTO borrowers (id, name, date_of_birth, address) VALUES
 ('jane_doe_19900512', 'Jane Doe', '1990-05-12', '123 Main St'),

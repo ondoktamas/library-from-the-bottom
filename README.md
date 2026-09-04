@@ -130,6 +130,20 @@ the seed data again.
 IDs are generated once, at creation time, from those fields. **Editing a book or borrower afterward
 does not regenerate the ID** — it stays fixed so loan references and URLs never break.
 
+Because of that, **an ID is a readable label, not the book's identity**. It is fixed at creation (so it
+goes stale the moment the book is edited) and it is lossy (it drops punctuation, diacritics and case,
+so `Clean Code` and `Clean-Code` would both want `..._clean_code_...`). Whether two books are *the same
+book* is therefore decided by their author, title, year and edition compared case- and
+whitespace-insensitively — punctuation and diacritics still count — and that comparison is recomputed
+on every edit. Two consequences:
+
+- If a genuinely different book would generate an ID that is already taken, it gets a numeric suffix
+  (`robert_c_martin_clean_code_2008_1st_2`) and keeps its own title and author, rather than being
+  absorbed into the existing entry.
+- `title`, `author` and `edition` must each contain at least one letter or digit, so that a usable ID
+  can be generated. A value made only of punctuation is rejected with `400`. This also means titles in
+  scripts the ID scheme cannot transliterate (e.g. Chinese or Japanese) are not currently supported.
+
 ### Borrowing rules
 
 - A library can hold multiple copies of the same book — `quantity` tracks how many are currently free.
@@ -145,9 +159,13 @@ does not regenerate the ID** — it stays fixed so loan references and URLs neve
   which removes the book entirely (along with its active loans). Fixing this properly means recording
   total copies owned and deriving availability as `totalCopies − activeLoans`; then a write-off is
   just a decrement of the total, rejected when it would drop below the number currently on loan.
-- Adding a book whose title/author/year/edition match an existing one (i.e. generates the same ID)
-  does **not** fail with a conflict — it adds the new request's `quantity` onto the existing book's
-  `quantity` instead, and returns the updated book. Borrowers only ever see one entry per book.
+- Adding a book whose title/author/year/edition match an existing one does **not** fail with a
+  conflict — it adds the new request's `quantity` onto the existing book's `quantity` instead, and
+  returns the updated book. Borrowers only ever see one entry per book. Matching is on those four
+  fields, not on the ID, so it keeps working after a book has been renamed.
+- Editing a book into another book's author/title/year/edition is rejected with `409 Conflict`. The
+  alternative would be merging two existing rows, which would have to discard one of them along with
+  its loans.
 - Borrowing decrements `quantity` by one; returning increments it back. Once `quantity` reaches 0,
   further borrow attempts get `409 Conflict` until a copy is returned.
 - Different copies of the same book can go to different borrowers at the same time — borrowing just
@@ -162,7 +180,7 @@ does not regenerate the ID** — it stays fixed so loan references and URLs neve
 |--------|-------------------------------|----------------------------------------------------------------|
 | GET    | `/api/books`                   | List books, optionally filtered by `?id=`, `?title=`, `?author=` (title/author match case-insensitively, substring) |
 | POST   | `/api/books`                   | Add a book (ID generated server-side); if one with the same ID already exists, adds this request's `quantity` onto it instead of creating a duplicate |
-| PUT    | `/api/books/{bookId}`          | Update a book's title/author/year/edition (ID unchanged; `quantity` is not editable here and is ignored if sent) |
+| PUT    | `/api/books/{bookId}`          | Update a book's title/author/year/edition (ID unchanged; `quantity` is not editable here and is ignored if sent; `409` if it would collide with another book) |
 | DELETE | `/api/books/{bookId}`          | Delete a book (also removes its active loan, if any)         |
 | POST   | `/api/books/{bookId}/borrow`   | Borrow a book (body: `{"borrowerId": "..."}`)                |
 | GET    | `/api/borrowers`                | List all borrowers                                            |

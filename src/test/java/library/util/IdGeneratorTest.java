@@ -35,4 +35,34 @@ class IdGeneratorTest {
 
         assertThat(id).isEqualTo("jane_doe_19900512");
     }
+
+    @Test
+    void bookId_isLossy_soDifferentBooksCanShareOne() {
+        // Documents exactly why an id is not an identity: these are two different
+        // books, and the id alone cannot tell them apart.
+        assertThat(IdGenerator.bookId("Robert C Martin", "Clean Code", 2008, "1st"))
+                .isEqualTo(IdGenerator.bookId("Robert C. Martin!", "Clean-Code", 2008, "1st"));
+    }
+
+    @Test
+    void normalize_ignoresCaseAndSurroundingAndRepeatedWhitespace() {
+        assertThat(IdGenerator.normalize("  Clean   Code ")).isEqualTo("clean code");
+        assertThat(IdGenerator.normalize("CLEAN CODE")).isEqualTo("clean code");
+    }
+
+    @Test
+    void normalize_keepsWhatActuallyDistinguishesTwoBooks() {
+        assertThat(IdGenerator.normalize("Clean-Code")).isNotEqualTo(IdGenerator.normalize("Clean Code"));
+        assertThat(IdGenerator.normalize("Robert C. Martin")).isNotEqualTo(IdGenerator.normalize("Robert C Martin"));
+        assertThat(IdGenerator.normalize("García")).isNotEqualTo(IdGenerator.normalize("Garcia"));
+    }
+
+    @Test
+    void hasUsableSlug_rejectsValuesThatWouldProduceAnEmptySegment() {
+        assertThat(IdGenerator.hasUsableSlug("Clean Code")).isTrue();
+        assertThat(IdGenerator.hasUsableSlug("1984")).isTrue();
+        assertThat(IdGenerator.hasUsableSlug("Cien Años")).as("diacritics transliterate").isTrue();
+        assertThat(IdGenerator.hasUsableSlug("!!!")).isFalse();
+        assertThat(IdGenerator.hasUsableSlug("   ")).isFalse();
+    }
 }

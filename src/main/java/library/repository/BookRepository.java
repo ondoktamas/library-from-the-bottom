@@ -21,4 +21,13 @@ public interface BookRepository extends JpaRepository<Book, String> {
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Book> findWithLockById(String id);
+
+    /**
+     * Looks a book up by identity rather than by its (lossy, creation-time) slug
+     * id. This is what decides whether an add merges into an existing book or
+     * creates a new one, and unlike an id lookup it stays correct after the book
+     * has been edited.
+     */
+    Optional<Book> findByNormalizedAuthorAndNormalizedTitleAndYearOfPublicationAndNormalizedEdition(
+            String normalizedAuthor, String normalizedTitle, Integer yearOfPublication, String normalizedEdition);
 }
