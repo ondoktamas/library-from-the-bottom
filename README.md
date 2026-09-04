@@ -3,6 +3,39 @@
 A Library Management System REST API (plus a small admin UI) built to demonstrate REST API design,
 database interaction, automated testing, and observability practices in Java.
 
+## Branches
+
+| Branch                            | What it is                                                                 |
+|-----------------------------------|----------------------------------------------------------------------------|
+| `main`                            | The original version, as first written. This is what you are reading now.   |
+| `fix/concurrency-and-otel-global` | The same project after a senior-level code review (Claude Opus), with the findings fixed. **Open, awaiting merge.** |
+
+`main` is intentionally left untouched so the two can be compared side by side — the review only makes
+sense against the code it was written about.
+
+The review branch carries two commits and fixes five findings, each with a regression test that was
+checked to fail when the fix is reverted (62 tests on `main`, 80 on the branch):
+
+- **`feat(review): opus level review fixes vol1`**
+  - Borrowing and returning had no concurrency control — ten simultaneous borrows against a single
+    copy all succeeded, creating ten loans for one book. Now serialised with a row-level write lock,
+    plus a unique constraint on `(book_id, borrower_id)`.
+  - The OpenTelemetry SDK registered itself as a JVM-wide singleton, so a second Spring context in the
+    same JVM (any test needing a different profile or a `@MockBean`) failed to start outright. It no
+    longer registers globally, and now shuts its providers down on context close.
+  - Editing a book overwrote the available-copies count with no regard for copies out on loan, so
+    returning one afterwards credited a copy the library never owned. `quantity` is no longer editable
+    through `PUT`.
+- **`feat(review): opus level review fixes vol2`**
+  - Renaming a book and then re-adding it created a duplicate row, because the "merge instead of
+    duplicate" rule was checked against an ID frozen at creation time.
+  - Two genuinely different books whose titles differ only by punctuation generated the same ID, and
+    the second was silently merged into the first, discarding its own title and author.
+
+Known issues that are documented but **not** fixed on the branch: error responses for malformed JSON
+and bad path variables come back with an empty body, book listing filters in memory with no pagination,
+and the borrow and return halves of one lifecycle live in different services.
+
 ## AI usage disclosure
 
 This project was built with AI coding agent assistance (Claude). The full prompt-by-prompt log —
