@@ -348,6 +348,37 @@ overlay.addEventListener("click", (e) => {
   if (e.target === overlay) closeModal();
 });
 
+// Force English validation messages, regardless of the browser/OS locale.
+// The "invalid" event doesn't bubble, so this must be registered with capture.
+modalForm.addEventListener(
+  "invalid",
+  (e) => {
+    const input = e.target;
+    const validity = input.validity;
+    if (validity.valueMissing) {
+      input.setCustomValidity("Please fill out this field.");
+    } else if (validity.patternMismatch) {
+      input.setCustomValidity(input.title || "Please match the requested format.");
+    } else if (validity.rangeUnderflow) {
+      input.setCustomValidity(`Value must be greater than or equal to ${input.min}.`);
+    } else if (validity.rangeOverflow) {
+      input.setCustomValidity(`Value must be less than or equal to ${input.max}.`);
+    } else if (validity.typeMismatch || validity.badInput) {
+      input.setCustomValidity("Please enter a valid value.");
+    } else {
+      input.setCustomValidity("");
+    }
+  },
+  true
+);
+modalForm.addEventListener(
+  "input",
+  (e) => {
+    e.target.setCustomValidity("");
+  },
+  true
+);
+
 modalForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(modalForm);
